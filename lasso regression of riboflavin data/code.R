@@ -108,3 +108,77 @@ r2_test <- 1 - sse_test/sst_test
 
 mse_test
 r2_test #r2>0.5 which is fair
+
+#FURTHER VISUALIZATION
+#PLot1. Bar chart - coefficient sizes of selected genes
+# Extract coefficients at lambda.1se
+coef_1se_train <- coef(cv_fit_train, s = "lambda.1se")
+
+#Convert to data frame, drop intercept, drop zero coefficients
+coef_df_train <- data.frame(
+  gene = rownames(coef_1se_train)[-1],           # remove Intercept row
+  coefficient = as.vector(coef_1se_train)[-1]
+)
+
+# Keep only non-zero coefficients
+coef_df_train <- coef_df_train[coef_df_train$coefficient != 0, ]
+
+# Sort by coefficient size for a cleaner plot
+coef_df_train <- coef_df_train[order(coef_df_train$coefficient), ]
+coef_df_train$gene <- factor(coef_df_train$gene, levels = coef_df_train$gene)
+
+# Plot
+library(ggplot2)
+ggplot(coef_df_train, aes(x = gene, y = coefficient, fill = coefficient > 0)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +   # horizontal bars so gene names don't overlap
+  scale_fill_manual(values = c("TRUE" = "#d73027", "FALSE" = "#4575b4"),
+                    labels = c("Negative", "Positive"), name = "") +
+  labs(title = "Genes Selected by Lasso and Their Coefficients (lambda.1se)",
+       x = "Gene", y = "Coefficient", 
+       caption = "**Positive coefficient value indicates contribution to riboflavin production") +
+  theme_minimal()
+
+## A lot of coefficients are negative? Why? This may reflect competition for metabolic resources, negative feedback regulation, or co-expression with the true causal genes.
+## Which means statistics can not directly give the genes that "cause" the production of riboflavin
+## Also, I did not conduct stability checks (e.g., repeated data splitting or bootstrap selection frequency, as mentioned earlier). So the risk of false positives among these negatively-associated genes is not negligible.
+
+#Plot2. Heatmap
+library(pheatmap) 
+
+# Names of selected genes
+selected_genes_train <- coef_df_train$gene
+
+# Extract expression data for just these genes from the original matrix
+# x is samples (rows) x genes (columns), so transpose since heatmaps put genes in rows
+expr_selected <- t(x[, selected_genes_train])
+
+# Optional: add y (riboflavin production) as a top annotation to see if expression
+# pattern lines up with production level
+annotation_col <- data.frame(riboflavin_y = y)
+rownames(annotation_col) <- rownames(x)
+
+pheatmap(expr_selected,
+         scale = "row",
+         annotation_col = annotation_col,
+         show_colnames = FALSE,
+         main = "Expression Heatmap of Lasso-Selected Genes",
+         color = colorRampPalette(c("#4575b4", "white", "#d73027"))(100),
+         fontsize = 11,                    
+         fontsize_row = 10,                
+         border_color = NA,                
+         treeheight_row = 40,              
+         treeheight_col = 30,              
+         cellwidth = 6,                    
+         cellheight = 16,                 
+         angle_col = 45)   
+
+## This is messy, not that clear
+
+#Plot3. Coefficient path plot — shows the full lasso selection process
+fit_train <- glmnet(x_train, y_train, alpha = 1)
+
+plot(fit_train, xvar = "lambda", label = TRUE)
+abline(v = -log(cv_fit_train$lambda.min), lty = 2, col = "gray40")
+abline(v = -log(cv_fit_train$lambda.1se), lty = 2, col = "gray40")
+legend("topright", legend = c("lambda.min", "lambda.1se"), lty = 2, col = "gray40")
