@@ -148,12 +148,19 @@ library(pheatmap)
 
 # Names of selected genes
 selected_genes_train <- coef_df_train$gene
+selected_genes_train <- as.character(selected_genes_train)
 
 # Extract expression data for just these genes from the original matrix
 # x is samples (rows) x genes (columns), so transpose since heatmaps put genes in rows
-expr_selected <- t(x[, selected_genes_train])
+gene_idx <- match(selected_genes_train, colnames(x))
+print(gene_idx)                        
+print(colnames(x)[gene_idx])           
+expr_selected <- t(x[, gene_idx, drop = FALSE])
 
-# Optional: add y (riboflavin production) as a top annotation to see if expression
+#check
+print(rownames(expr_selected)) 
+
+# Add y (riboflavin production) as a top annotation to see if expression
 # pattern lines up with production level
 annotation_col <- data.frame(riboflavin_y = y)
 rownames(annotation_col) <- rownames(x)
