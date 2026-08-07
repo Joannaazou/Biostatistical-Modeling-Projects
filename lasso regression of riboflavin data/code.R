@@ -27,7 +27,7 @@ class(y)
 class(x)
 
 #visualize the data first
-hist(y, main = "Riboflavin Production (log scale)", xlab = "y") #The distribution of Y is skewed to the left. But that's ok 'cause neither LASSO nor OLS requires normal distribution of error or Y
+hist(y, main = "Riboflavin Production (log scale)", xlab = "y", breaks = 20) #The distribution of Y is skewed to the left. But that's ok 'cause neither LASSO nor OLS requires normal distribution of error or Y
 summary(y)
 x[1:5, 1:5]
 
@@ -65,6 +65,46 @@ pred_1se <- predict(cv_fit, newx = x, s = "lambda.1se")
 r_squared <- 1 - sum((y - pred_1se)^2)/sum((y - mean(y))^2)
 r_squared #R^2 >0.5 which is good
 
-##NOTE: In the current version of code I do not divide training set and test set. Neither did I check the distribution of errors. These were expected to added later.
-##Also according to further research, not all selected genes belong to the riboflavin biosynthetic pathway. These genes should therefore be considered predictive biomarkers and candidate regulators rather than direct causal genes.
-##Mediatior analysis could probably be the next step.
+
+##Note: According to further research, not all selected genes belong to the riboflavin biosynthetic pathway. These genes should therefore be considered predictive biomarkers and candidate regulators rather than direct causal genes.
+##Mediatior analysis could probably be the next step. 
+
+####################################################################
+############LASSO REGRESSION WITH TRAINING&TEST SETS################
+####################################################################
+set.seed(221)
+n <- nrow(x)
+train_idx <- sample(1:n, size = round(0.75 * n))  # 85% for training set
+
+x_train <- x[train_idx, ]
+y_train <- y[train_idx]
+x_test  <- x[-train_idx, ]
+y_test  <- y[-train_idx]
+
+#check sample size
+length(train_idx)   # sample size in the training set
+n - length(train_idx)  # sample size in the test set
+
+#visualize the data of the training set first
+hist(y_train, main = "Riboflavin Production of the Training Set(log scale)", xlab = "y", breaks = 20) 
+summary(y_train)
+x_train[1:5, 1:5]
+
+#run the cross validation lasso regression model(repeat the steps above)
+set.seed(232)
+cv_fit_train <- cv.glmnet(x_train, y_train, alpha = 1, family = "gaussian", nfolds = 10)
+
+plot(cv_fit_train)
+cv_fit_train
+best_lambda_train <- cv_fit$lambda.1se #only 15 genes selected!
+
+# predict on the test set and evaluate
+pred_test <- predict(cv_fit_train, s = best_lambda_train, newx = x_test)
+pred_test
+mse_test <- mean((y_test - pred_test)^2)
+sst_test <- sum((y_test - mean(y_test))^2)
+sse_test <- sum((y_test - pred_test)^2)
+r2_test <- 1 - sse_test/sst_test
+
+mse_test
+r2_test #r2>0.5 which is fair
